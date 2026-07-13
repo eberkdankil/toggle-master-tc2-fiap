@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: toggle-master-config
+  namespace: toggle-master
+data:
+  auth-service-port: "8001"
+  flag-service-port: "8002"
+  targeting-service-port: "8003"
+  evaluation-service-port: "8004"
+  analytics-service-port: "8005"
+  auth-service-url: http://auth-service:8001
+  flag-service-url: http://flag-service:8002
+  targeting-service-url: http://targeting-service:8003
+  redis-url: redis://toggle-master-cache-xxxxxx.serverless.use1.cache.amazonaws.com:6379
+  aws-sqs-url: https://sqs.us-east-1.amazonaws.com/123456789012/toggle-master-queue
+  aws-dynamodb-table: ToggleMasterAnalytics
+  aws-region: us-east-1

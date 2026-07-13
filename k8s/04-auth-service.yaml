@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: toggle-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: auth-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8001
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: auth-service-port
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: auth-db-url
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: master-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: toggle-master
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 8001
+      targetPort: 8001

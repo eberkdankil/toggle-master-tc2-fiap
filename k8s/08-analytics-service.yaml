@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: toggle-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+    spec:
+      containers:
+        - name: analytics-service
+          image: analytics-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8005
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: analytics-service-port
+            - name: AWS_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: aws-sqs-url
+            - name: AWS_DYNAMODB_TABLE
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: aws-dynamodb-table
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: aws-region
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: aws-secret-access-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

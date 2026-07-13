@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flag-service
+  namespace: toggle-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flag-service
+  template:
+    metadata:
+      labels:
+        app: flag-service
+    spec:
+      containers:
+        - name: flag-service
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/toggle-master/flag-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8002
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: flag-service-port
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: flags-db-url
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: auth-service-url
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flag-service
+  namespace: toggle-master
+spec:
+  selector:
+    app: flag-service
+  ports:
+    - port: 8002
+      targetPort: 8002

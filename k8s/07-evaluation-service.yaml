@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evaluation-service
+  namespace: toggle-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: evaluation-service
+  template:
+    metadata:
+      labels:
+        app: evaluation-service
+    spec:
+      containers:
+        - name: evaluation-service
+          image: evaluation-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8004
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: evaluation-service-port
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: redis-url
+            - name: FLAG_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: flag-service-url
+            - name: TARGETING_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: targeting-service-url
+            - name: SERVICE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: service-api-key
+            - name: AWS_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: aws-sqs-url
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: aws-region
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: aws-secret-access-key
+          resources:
+            requests:
+              cpu: 200m
+              memory: 64Mi
+            limits:
+              cpu: 1000m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: evaluation-service
+  namespace: toggle-master
+spec:
+  selector:
+    app: evaluation-service
+  ports:
+    - port: 8004
+      targetPort: 8004
