@@ -89,3 +89,21 @@ curl http://localhost:8001/validate \
 ```
 
 Saída esperada: `Chave de API inválida ou inativa`
+
+## 🔒 Demo do gate de segurança (DevSecOps)
+
+O pipeline (`.github/workflows/auth-service.yml`) bloqueia o push se o Trivy
+achar uma vulnerabilidade CRÍTICA nas dependências. Pra reproduzir isso na
+gravação do vídeo do desafio:
+
+1. Em `go.mod`, troque a linha `golang.org/x/crypto v0.55.0 // indirect` por
+   `golang.org/x/crypto v0.20.0 // indirect` (reintroduz a CVE-2026-56854,
+   CRÍTICA — foi encontrada de verdade nesse projeto, não é fictícia).
+2. Commit + push → o job `security-scan` deve falhar no passo "SCA - Trivy
+   (filesystem)".
+3. Reverta pra `v0.55.0` (ou uma versão mais nova, sem a CVE), commit + push
+   de novo → o pipeline deve passar.
+
+O `go mod tidy` que roda automaticamente no CI cuida de ajustar o `go.sum`
+conforme a versão do `go.mod` a cada push — não precisa rodar nada localmente
+antes de commitar.
