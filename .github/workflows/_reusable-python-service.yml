@@ -73,7 +73,7 @@ jobs:
       # SCA — vulnerabilidades nas dependências (requirements.txt).
       # Regra de bloqueio do desafio: falha o job se achar algo CRÍTICO.
       - name: SCA - Trivy (filesystem)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: ${{ inputs.service_path }}
@@ -118,7 +118,7 @@ jobs:
 
       # Container Scan — mesma regra de bloqueio (CRÍTICO falha o pipeline).
       - name: Container Scan - Trivy (imagem)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ inputs.service_name }}:${{ steps.vars.outputs.tag }}
           severity: CRITICAL
