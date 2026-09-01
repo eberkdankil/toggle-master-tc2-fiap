@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: toggle-master
+  labels:
+    app: analytics-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+    spec:
+      containers:
+        - name: analytics-service
+          image: 667434694207.dkr.ecr.us-east-1.amazonaws.com/toggle-master/analytics-service:latest
+          ports:
+            - containerPort: 8005
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: analytics-service-port
+            - name: AWS_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: aws-sqs-url
+            - name: AWS_DYNAMODB_TABLE
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: aws-dynamodb-table
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: aws-region
+            # Sem AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY de propósito — ver
+            # comentário no evaluation-service (LabRole via node do EKS).
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          # Fiel ao k8s/08-analytics-service.yaml original: sem probes (o
+          # trabalho real dele é a thread de consumo do SQS, não o Flask).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: toggle-master
+spec:
+  selector:
+    app: analytics-service
+  ports:
+    - port: 8005
+      targetPort: 8005
