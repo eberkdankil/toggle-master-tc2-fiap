@@ -4,7 +4,11 @@ metadata:
   name: db-migrate
   namespace: toggle-master
 spec:
-  backoffLimit: 2
+  # 0 de propósito: falhas aqui (senha errada, schema com erro de sintaxe)
+  # não são transitórias — repetir não muda o resultado, só atrasa o
+  # diagnóstico (foi o que aconteceu: 3 tentativas erradas + kubectl wait
+  # esperando os 180s inteiros por uma condição que nunca ia vir).
+  backoffLimit: 0
   template:
     spec:
       restartPolicy: Never

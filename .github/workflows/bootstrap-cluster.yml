@@ -87,4 +87,26 @@ jobs:
 
           kubectl delete job db-migrate --namespace toggle-master --ignore-not-found
           kubectl apply -f cluster-bootstrap/db-migrate-job.yaml
-          kubectl wait --namespace toggle-master --for=condition=complete job/db-migrate --timeout=180s
+
+          # Não usamos `kubectl wait --for=condition=complete`: ele só
+          # reconhece sucesso e fica parado até o timeout inteiro quando o
+          # Job falha (foi exatamente o que aconteceu da primeira vez — 3
+          # tentativas erradas em segundos, e o wait esperou os 180s à toa).
+          # Aqui a gente resolve assim que o Job chega em Complete OU Failed.
+          echo "Aguardando o Job terminar..."
+          STATUS=""
+          for i in $(seq 1 30); do
+            STATUS=$(kubectl get job db-migrate -n toggle-master -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || true)
+            if [ "$STATUS" = "Complete" ] || [ "$STATUS" = "Failed" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          echo "--- Logs do Job (status: ${STATUS:-desconhecido}) ---"
+          kubectl logs -n toggle-master job/db-migrate --all-containers || true
+
+          if [ "$STATUS" != "Complete" ]; then
+            echo "Migração de schema falhou ou não terminou a tempo."
+            exit 1
+          fi
