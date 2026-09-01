@@ -92,21 +92,29 @@ jobs:
           # reconhece sucesso e fica parado até o timeout inteiro quando o
           # Job falha (foi exatamente o que aconteceu da primeira vez — 3
           # tentativas erradas em segundos, e o wait esperou os 180s à toa).
-          # Aqui a gente resolve assim que o Job chega em Complete OU Failed.
+          #
+          # E não dá pra confiar em `.status.conditions[0].type`: o array de
+          # conditions de um Job pode ter "SuccessCriteriaMet" antes de
+          # "Complete" (a ordem não é garantida), então checar só a posição
+          # [0] pode nunca bater com "Complete" mesmo o Job tendo terminado
+          # certinho — foi exatamente o que aconteceu aqui. Filtramos pelo
+          # tipo certo em vez de confiar na posição.
           echo "Aguardando o Job terminar..."
-          STATUS=""
+          COMPLETE=""
+          FAILED=""
           for i in $(seq 1 30); do
-            STATUS=$(kubectl get job db-migrate -n toggle-master -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || true)
-            if [ "$STATUS" = "Complete" ] || [ "$STATUS" = "Failed" ]; then
+            COMPLETE=$(kubectl get job db-migrate -n toggle-master -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)
+            FAILED=$(kubectl get job db-migrate -n toggle-master -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)
+            if [ "$COMPLETE" = "True" ] || [ "$FAILED" = "True" ]; then
               break
             fi
             sleep 5
           done
 
-          echo "--- Logs do Job (status: ${STATUS:-desconhecido}) ---"
+          echo "--- Logs do Job (Complete=${COMPLETE:-?} Failed=${FAILED:-?}) ---"
           kubectl logs -n toggle-master job/db-migrate --all-containers || true
 
-          if [ "$STATUS" != "Complete" ]; then
+          if [ "$COMPLETE" != "True" ]; then
             echo "Migração de schema falhou ou não terminou a tempo."
             exit 1
           fi
