@@ -1,0 +1,19 @@
+name: analytics-service
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "analytics-service/**"
+  pull_request:
+    paths:
+      - "analytics-service/**"
+
+jobs:
+  ci-cd:
+    uses: ./.github/workflows/_reusable-python-service.yml
+    with:
+      service_name: analytics-service
+      service_path: analytics-service
+      gitops_manifest: gitops/07-analytics-service.yaml
+    secrets: inherit

@@ -1,0 +1,90 @@
+name: bootstrap-cluster
+
+# Disparo manual de propósito: isso não roda a cada push de serviço, só
+# quando a infra (togglemaster-infra) é criada/recriada do zero.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: togglemaster
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configurar kubectl
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
+
+      # Nomes/identificadores são fixos no Terraform (togglemaster-auth, etc)
+      # mesmo depois de destroy/recreate — só o hostname gerado muda.
+      - name: Descobrir endpoints atuais na AWS
+        id: aws-endpoints
+        run: |
+          echo "auth_db=$(aws rds describe-db-instances --db-instance-identifier togglemaster-auth --query 'DBInstances[0].Endpoint.Address' --output text)" >> "$GITHUB_OUTPUT"
+          echo "flags_db=$(aws rds describe-db-instances --db-instance-identifier togglemaster-flags --query 'DBInstances[0].Endpoint.Address' --output text)" >> "$GITHUB_OUTPUT"
+          echo "targeting_db=$(aws rds describe-db-instances --db-instance-identifier togglemaster-targeting --query 'DBInstances[0].Endpoint.Address' --output text)" >> "$GITHUB_OUTPUT"
+          echo "redis=$(aws elasticache describe-cache-clusters --cache-cluster-id togglemaster-redis --show-cache-node-info --query 'CacheClusters[0].CacheNodes[0].Endpoint.Address' --output text)" >> "$GITHUB_OUTPUT"
+          echo "sqs_url=$(aws sqs get-queue-url --queue-name togglemaster-events --query QueueUrl --output text)" >> "$GITHUB_OUTPUT"
+
+      # ConfigMap fica versionado no gitops/ (o ArgoCD é quem aplica de
+      # verdade) — aqui só reescrevemos os placeholders e comitamos, mesmo
+      # mecanismo que os workflows de serviço usam pra tag de imagem.
+      - name: Atualizar endpoints no gitops/02-configmap.yaml
+        run: |
+          sed -i -E "s#__REDIS_ENDPOINT__#${{ steps.aws-endpoints.outputs.redis }}#" gitops/02-configmap.yaml
+          sed -i -E "s#__SQS_QUEUE_URL__#${{ steps.aws-endpoints.outputs.sqs_url }}#" gitops/02-configmap.yaml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gitops/02-configmap.yaml
+          git diff --cached --quiet && echo "Nada mudou" || git commit -m "bootstrap: atualiza endpoints do ConfigMap"
+          git diff --cached --quiet || git push
+
+      # Secret NUNCA vai pro Git — aplicado direto no cluster, valores vindos
+      # de GitHub Secrets + dos endpoints descobertos acima.
+      - name: Aplicar Secret com credenciais reais
+        env:
+          AUTH_DB_URL: "postgres://auth_user:${{ secrets.DB_AUTH_PASSWORD }}@${{ steps.aws-endpoints.outputs.auth_db }}:5432/auth_db?sslmode=require"
+          FLAGS_DB_URL: "postgres://flags_user:${{ secrets.DB_FLAGS_PASSWORD }}@${{ steps.aws-endpoints.outputs.flags_db }}:5432/flags_db?sslmode=require"
+          TARGETING_DB_URL: "postgres://targeting_user:${{ secrets.DB_TARGETING_PASSWORD }}@${{ steps.aws-endpoints.outputs.targeting_db }}:5432/targeting_db?sslmode=require"
+        run: |
+          kubectl create namespace toggle-master --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic toggle-master-secret \
+            --namespace toggle-master \
+            --from-literal=auth-db-url="$AUTH_DB_URL" \
+            --from-literal=flags-db-url="$FLAGS_DB_URL" \
+            --from-literal=targeting-db-url="$TARGETING_DB_URL" \
+            --from-literal=master-key="${{ secrets.MASTER_KEY }}" \
+            --from-literal=service-api-key="${{ secrets.SERVICE_API_KEY }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # RDS não roda init.sql sozinho (isso é um mecanismo só da imagem
+      # Docker do Postgres) — precisa aplicar o schema manualmente uma vez.
+      - name: Rodar migração de schema nos 3 bancos
+        run: |
+          kubectl create configmap db-init-sql \
+            --namespace toggle-master \
+            --from-file=auth-init.sql=auth-service/db/init.sql \
+            --from-file=flags-init.sql=flag-service/db/init.sql \
+            --from-file=targeting-init.sql=targeting-service/db/init.sql \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl delete job db-migrate --namespace toggle-master --ignore-not-found
+          kubectl apply -f cluster-bootstrap/db-migrate-job.yaml
+          kubectl wait --namespace toggle-master --for=condition=complete job/db-migrate --timeout=180s

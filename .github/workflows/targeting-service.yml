@@ -1,0 +1,19 @@
+name: targeting-service
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "targeting-service/**"
+  pull_request:
+    paths:
+      - "targeting-service/**"
+
+jobs:
+  ci-cd:
+    uses: ./.github/workflows/_reusable-python-service.yml
+    with:
+      service_name: targeting-service
+      service_path: targeting-service
+      gitops_manifest: gitops/05-targeting-service.yaml
+    secrets: inherit

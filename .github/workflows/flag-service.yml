@@ -1,0 +1,19 @@
+name: flag-service
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "flag-service/**"
+  pull_request:
+    paths:
+      - "flag-service/**"
+
+jobs:
+  ci-cd:
+    uses: ./.github/workflows/_reusable-python-service.yml
+    with:
+      service_name: flag-service
+      service_path: flag-service
+      gitops_manifest: gitops/04-flag-service.yaml
+    secrets: inherit

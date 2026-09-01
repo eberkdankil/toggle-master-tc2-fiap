@@ -1,0 +1,19 @@
+name: evaluation-service
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "evaluation-service/**"
+  pull_request:
+    paths:
+      - "evaluation-service/**"
+
+jobs:
+  ci-cd:
+    uses: ./.github/workflows/_reusable-go-service.yml
+    with:
+      service_name: evaluation-service
+      service_path: evaluation-service
+      gitops_manifest: gitops/06-evaluation-service.yaml
+    secrets: inherit

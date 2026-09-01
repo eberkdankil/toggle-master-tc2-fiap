@@ -13,27 +13,28 @@ no repo `togglemaster-infra`). Arquivos numerados = ordem de aplicação.
 | `03` a `07` | Deployment + Service de cada um dos 5 microsserviços, imagem vindo do ECR |
 | `08-hpa.yaml` | Autoscaling do evaluation-service e analytics-service (precisa do `metrics-server` instalado no cluster) |
 
-## Antes do primeiro deploy
+## Antes do primeiro deploy (depois de toda recriação da infra)
 
-1. **Secret**: copie `01-secret.yaml.example` → `01-secret.yaml`, preencha com
-   os valores reais (senhas do RDS, master key, service API key) e aplique
-   manualmente uma vez — `kubectl apply -f gitops/01-secret.yaml`. Isso fica
-   fora do sync do ArgoCD de propósito (não expõe credencial real no Git).
+Rode o workflow **`bootstrap-cluster`** (Actions → bootstrap-cluster → Run
+workflow) no repo. Ele faz tudo isso automaticamente:
 
-2. **ConfigMap**: rode no repo `togglemaster-infra`:
-   ```bash
-   terraform -chdir=terraform/environments/aws output redis_endpoint
-   terraform -chdir=terraform/environments/aws output sqs_queue_url
-   ```
-   e substitua `__REDIS_ENDPOINT__` e `__SQS_QUEUE_URL__` em `02-configmap.yaml`
-   pelos valores reais antes de commitar. Esses endpoints mudam toda vez que a
-   infra é destruída/recriada — automatizar essa substituição via CI é um
-   próximo passo natural, não implementado ainda.
+1. Descobre os endpoints atuais do RDS/Redis/SQS na AWS (mudam a cada
+   `terraform apply`, já que a infra é destruída/recriada com frequência).
+2. Reescreve os placeholders `__REDIS_ENDPOINT__`/`__SQS_QUEUE_URL__` em
+   `02-configmap.yaml` e comita — o ArgoCD sincroniza normalmente a partir daí.
+3. Aplica o `Secret` real direto no cluster via `kubectl` (nunca vai pro Git —
+   valores vêm de GitHub Secrets, ver `.github/workflows/README.md`).
+4. Roda a migração de schema nos 3 RDS (`cluster-bootstrap/db-migrate-job.yaml`)
+   — RDS não tem o mecanismo `docker-entrypoint-initdb.d` do Postgres em
+   Docker, então ninguém cria as tabelas sozinho; esse Job faz isso.
 
-3. **metrics-server** (pra HPA funcionar):
-   ```bash
-   kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-   ```
+`01-secret.yaml.example` continua aqui só como documentação do formato — não
+precisa mais criar `01-secret.yaml` manualmente, o bootstrap cobre isso.
+
+**metrics-server** (pra HPA funcionar, não coberto pelo bootstrap):
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
 
 ## Por que não tem AWS_ACCESS_KEY_ID/SECRET nos Deployments
 

@@ -1,0 +1,155 @@
+name: Reusable - Go service CI/CD
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        required: true
+        type: string
+      service_path:
+        required: true
+        type: string
+      gitops_manifest:
+        required: true
+        type: string
+      aws_region:
+        required: false
+        type: string
+        default: us-east-1
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-test:
+    name: Build & Unit Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - working-directory: ${{ inputs.service_path }}
+        run: |
+          go mod tidy
+          go build ./...
+          go test ./... -v
+
+  lint:
+    name: Linter / Static Analysis
+    runs-on: ubuntu-latest
+    # Não-bloqueante de propósito: o código ainda não passou por um audit de
+    # lint, então travar o pipeline inteiro em nits de estilo agora
+    # atrapalharia a demonstração do desafio (que foca no gate de segurança).
+    # Trocar pra bloqueante quando o código estiver lint-clean.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: ${{ inputs.service_path }}
+          args: --timeout=5m
+
+  security-scan:
+    name: Security Scan (SAST & SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # SCA — vulnerabilidades nas dependências (go.mod/go.sum).
+      # Regra de bloqueio do desafio: falha o job se achar algo CRÍTICO.
+      - name: SCA - Trivy (filesystem)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ inputs.service_path }}
+          severity: CRITICAL
+          exit-code: "1"
+
+      # SAST — vulnerabilidades no código-fonte Go.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: SAST - gosec
+        working-directory: ${{ inputs.service_path }}
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec -severity high -confidence high ./...
+
+  docker-build-push:
+    name: Docker Build & Push (ECR)
+    needs: [build-test, security-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Definir tag (commit hash)
+        id: vars
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Login no ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build da imagem
+        run: docker build -t ${{ inputs.service_name }}:${{ steps.vars.outputs.tag }} ${{ inputs.service_path }}
+
+      # Container Scan — mesma regra de bloqueio (CRÍTICO falha o pipeline).
+      - name: Container Scan - Trivy (imagem)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ inputs.service_name }}:${{ steps.vars.outputs.tag }}
+          severity: CRITICAL
+          exit-code: "1"
+
+      - name: Tag & push pro ECR
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          REPO: toggle-master/${{ inputs.service_name }}
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          docker tag ${{ inputs.service_name }}:$TAG $REGISTRY/$REPO:$TAG
+          docker tag ${{ inputs.service_name }}:$TAG $REGISTRY/$REPO:latest
+          docker push $REGISTRY/$REPO:$TAG
+          docker push $REGISTRY/$REPO:latest
+
+  update-gitops:
+    name: Atualizar tag no GitOps
+    needs: docker-build-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Reescrever tag da imagem no manifest
+        env:
+          TAG: ${{ needs.docker-build-push.outputs.image_tag }}
+        run: |
+          sed -i -E "s#(image: .*/toggle-master/${{ inputs.service_name }}):[a-zA-Z0-9._-]+#\1:$TAG#" ${{ inputs.gitops_manifest }}
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ inputs.gitops_manifest }}
+          git diff --cached --quiet && echo "Nada mudou" || git commit -m "deploy(${{ inputs.service_name }}): imagem ${{ needs.docker-build-push.outputs.image_tag }}"
+          git push

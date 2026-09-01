@@ -1,0 +1,19 @@
+name: auth-service
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "auth-service/**"
+  pull_request:
+    paths:
+      - "auth-service/**"
+
+jobs:
+  ci-cd:
+    uses: ./.github/workflows/_reusable-go-service.yml
+    with:
+      service_name: auth-service
+      service_path: auth-service
+      gitops_manifest: gitops/03-auth-service.yaml
+    secrets: inherit

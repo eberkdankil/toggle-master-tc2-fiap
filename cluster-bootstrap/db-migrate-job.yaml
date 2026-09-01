@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: toggle-master
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-migrate
+          image: postgres:15-alpine
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo ">>> Aplicando schema do auth-service..."
+              psql "$AUTH_DB_URL" -f /sql/auth-init.sql
+              echo ">>> Aplicando schema do flag-service..."
+              psql "$FLAGS_DB_URL" -f /sql/flags-init.sql
+              echo ">>> Aplicando schema do targeting-service..."
+              psql "$TARGETING_DB_URL" -f /sql/targeting-init.sql
+              echo ">>> Schema aplicado com sucesso nos 3 bancos."
+          env:
+            - name: AUTH_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: auth-db-url
+            - name: FLAGS_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: flags-db-url
+            - name: TARGETING_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: toggle-master-secret
+                  key: targeting-db-url
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+      volumes:
+        - name: sql
+          configMap:
+            name: db-init-sql
