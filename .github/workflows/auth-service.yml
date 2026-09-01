@@ -11,6 +11,8 @@ on:
 
 jobs:
   ci-cd:
+    permissions:
+      contents: write
     uses: ./.github/workflows/_reusable-go-service.yml
     with:
       service_name: auth-service

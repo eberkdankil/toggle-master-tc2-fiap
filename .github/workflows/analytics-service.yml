@@ -11,6 +11,8 @@ on:
 
 jobs:
   ci-cd:
+    permissions:
+      contents: write
     uses: ./.github/workflows/_reusable-python-service.yml
     with:
       service_name: analytics-service
