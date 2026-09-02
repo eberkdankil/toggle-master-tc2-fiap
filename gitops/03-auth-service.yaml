@@ -19,7 +19,7 @@ spec:
         - name: auth-service
           # Tag "latest" por enquanto — o pipeline de CI vai reescrever essa
           # linha com a tag do commit hash (ex: v1.0.0-a1b2c3d) a cada deploy.
-          image: 667434694207.dkr.ecr.us-east-1.amazonaws.com/toggle-master/auth-service:latest
+          image: 667434694207.dkr.ecr.us-east-1.amazonaws.com/toggle-master/auth-service:0e0f2c4
           ports:
             - containerPort: 8001
           env:
