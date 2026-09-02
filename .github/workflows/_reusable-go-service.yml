@@ -61,6 +61,11 @@ jobs:
         run: go mod tidy
       - uses: golangci/golangci-lint-action@v6
         with:
+          # "latest" em vez do default fixo da action: o golang.org/x/crypto
+          # atualizado (correção da CVE) elevou o Go exigido pelo módulo, e a
+          # versão padrão do golangci-lint pode ter sido compilada com um Go
+          # mais antigo que isso — pegar a mais recente evita o descompasso.
+          version: latest
           working-directory: ${{ inputs.service_path }}
           args: --timeout=5m
 
@@ -84,6 +89,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.21"
+      # Mesmo motivo do job de lint: sem isso, o gosec não consegue resolver
+      # os pacotes importados (pgx, godotenv) e falha antes mesmo de analisar.
+      - working-directory: ${{ inputs.service_path }}
+        run: go mod tidy
       - name: SAST - gosec
         working-directory: ${{ inputs.service_path }}
         run: |
