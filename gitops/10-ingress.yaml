@@ -1,0 +1,60 @@
+# Rotas usadas exatamente como os serviços as registram — sem prefixo por
+# serviço, sem rewrite. Conferido direto no código (main.go/app.py) pra não
+# repetir o erro de supor um prefixo (ex: "/targeting") que não existe de
+# verdade (a rota real do targeting-service é "/rules").
+#
+# /health não é exposto aqui de propósito — é só pra probe interna do
+# Kubernetes, não faz parte da API pública, e evitaria colisão entre os
+# 4 serviços (todos têm um "/health").
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: toggle-master-ingress
+  namespace: toggle-master
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # auth-service — POST /admin/keys (com MASTER_KEY), GET /validate
+          - path: /admin/keys
+            pathType: Exact
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8001
+          - path: /validate
+            pathType: Exact
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8001
+
+          # flag-service — /flags e /flags/<name>
+          - path: /flags
+            pathType: Prefix
+            backend:
+              service:
+                name: flag-service
+                port:
+                  number: 8002
+
+          # targeting-service — /rules e /rules/<flag_name>
+          - path: /rules
+            pathType: Prefix
+            backend:
+              service:
+                name: targeting-service
+                port:
+                  number: 8003
+
+          # evaluation-service — GET /evaluate?user_id=...&flag_name=...
+          - path: /evaluate
+            pathType: Exact
+            backend:
+              service:
+                name: evaluation-service
+                port:
+                  number: 8004
