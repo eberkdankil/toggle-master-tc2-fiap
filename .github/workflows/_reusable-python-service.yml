@@ -117,12 +117,16 @@ jobs:
         run: docker build -t ${{ inputs.service_name }}:${{ steps.vars.outputs.tag }} ${{ inputs.service_path }}
 
       # Container Scan — mesma regra de bloqueio (CRÍTICO falha o pipeline).
+      # trivyignores: CVEs de pacotes do SO (base python:3.12-slim) sem
+      # correção disponível ainda — ver <serviço>/.trivyignore pra detalhes
+      # e justificativa de cada uma.
       - name: Container Scan - Trivy (imagem)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ inputs.service_name }}:${{ steps.vars.outputs.tag }}
           severity: CRITICAL
           exit-code: "1"
+          trivyignores: ${{ inputs.service_path }}/.trivyignore
 
       - name: Tag & push pro ECR
         env:

@@ -1,0 +1,10 @@
+# CVEs do perl-base (pacote de sistema da imagem base python:3.12-slim,
+# não usado em runtime por este serviço Flask/gunicorn) sem correção
+# disponível no momento — aceitos conscientemente, não suprimidos sem motivo.
+#
+# CVE-2026-13221: status "affected", sem Fixed Version publicada no Debian.
+CVE-2026-13221
+# CVE-2026-42496: status "fix_deferred" — Debian adiou o backport de propósito.
+CVE-2026-42496
+# CVE-2026-8376: status "affected", sem Fixed Version publicada no Debian.
+CVE-2026-8376
