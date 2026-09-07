@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
       - working-directory: ${{ inputs.service_path }}
         run: |
           pip install -r requirements.txt
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
       - working-directory: ${{ inputs.service_path }}
         run: |
           pip install flake8
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
 
       # SCA — vulnerabilidades nas dependências (requirements.txt).
       # Regra de bloqueio do desafio: falha o job se achar algo CRÍTICO.
@@ -90,7 +90,7 @@ jobs:
   docker-build-push:
     name: Docker Build & Push (ECR)
     needs: [build-test, security-scan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.vars.outputs.tag }}
