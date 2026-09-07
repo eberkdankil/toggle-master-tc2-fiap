@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 	"os"
@@ -102,13 +103,19 @@ func (a *App) fetchFromServices(flagName string) (*CombinedFlagInfo, error) {
 
 // fetchFlag (função helper)
 func (a *App) fetchFlag(flagName string) (*Flag, error) {
-	url := fmt.Sprintf("%s/flags/%s", a.FlagServiceURL, flagName)
+	// flagName vem direto de r.URL.Query().Get("flag_name") no /evaluate
+	// público (handlers.go) — escapamos como segmento de path pra impedir
+	// que caracteres tipo "/", "?", "#" alterem a rota chamada no
+	// flag-service. O host (a.FlagServiceURL) é fixo, vem de configuração,
+	// não do usuário, então isso não é um SSRF cross-host de verdade — mas
+	// sem escapar, dava pra confundir o roteamento dentro do mesmo host.
+	reqURL := fmt.Sprintf("%s/flags/%s", a.FlagServiceURL, url.PathEscape(flagName))
 
 	apiKey := os.Getenv("SERVICE_API_KEY")
-	req, _ := http.NewRequest("GET", url, nil)
+	req, _ := http.NewRequest("GET", reqURL, nil) // #nosec G704 -- host fixo (config), path escapado acima
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	
-	resp, err := a.HttpClient.Do(req)
+
+	resp, err := a.HttpClient.Do(req) // #nosec G704 -- host fixo (config), path escapado acima
 	if err != nil {
 		return nil, fmt.Errorf("erro ao chamar flag-service: %w", err)
 	}
@@ -130,12 +137,13 @@ func (a *App) fetchFlag(flagName string) (*Flag, error) {
 }
 
 func (a *App) fetchRule(flagName string) (*TargetingRule, error) {
-	url := fmt.Sprintf("%s/rules/%s", a.TargetingServiceURL, flagName)
+	// Mesma justificativa do fetchFlag acima.
+	reqURL := fmt.Sprintf("%s/rules/%s", a.TargetingServiceURL, url.PathEscape(flagName))
 	apiKey := os.Getenv("SERVICE_API_KEY") // Usa a mesma chave
-	req, _ := http.NewRequest("GET", url, nil)
+	req, _ := http.NewRequest("GET", reqURL, nil) // #nosec G704 -- host fixo (config), path escapado acima
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	
-	resp, err := a.HttpClient.Do(req)
+
+	resp, err := a.HttpClient.Do(req) // #nosec G704 -- host fixo (config), path escapado acima
 	if err != nil {
 		return nil, fmt.Errorf("erro ao chamar targeting-service: %w", err)
 	}
