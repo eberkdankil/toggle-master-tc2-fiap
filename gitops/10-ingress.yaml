@@ -1,60 +1,66 @@
-# Rotas usadas exatamente como os serviços as registram — sem prefixo por
-# serviço, sem rewrite. Conferido direto no código (main.go/app.py) pra não
-# repetir o erro de supor um prefixo (ex: "/targeting") que não existe de
-# verdade (a rota real do targeting-service é "/rules").
+# Um prefixo por serviço, com rewrite de verdade (o nginx suporta, ao
+# contrário do ALB) — tudo que o serviço expõe internamente (incluindo
+# /health) fica acessível como /<prefixo>/<rota original>. Ex:
+#   /auth/health        -> auth-service:/health
+#   /auth/validate      -> auth-service:/validate
+#   /auth/admin/keys    -> auth-service:/admin/keys
+#   /flags/health       -> flag-service:/health
+#   /flags/flags        -> flag-service:/flags
+#   /flags/flags/<name> -> flag-service:/flags/<name>
+#   /targeting/health        -> targeting-service:/health
+#   /targeting/rules         -> targeting-service:/rules
+#   /targeting/rules/<name>  -> targeting-service:/rules/<name>
+#   /evaluation/health  -> evaluation-service:/health
+#   /evaluation/evaluate -> evaluation-service:/evaluate
+#   /analytics/health   -> analytics-service:/health
 #
-# /health não é exposto aqui de propósito — é só pra probe interna do
-# Kubernetes, não faz parte da API pública, e evitaria colisão entre os
-# 4 serviços (todos têm um "/health").
+# O padrão "(/|$)(.*)" + rewrite "/$2" é o idiom padrão do ingress-nginx pra
+# isso — bate vazio (raiz do serviço, sem handler, 404 esperado) ou o
+# restante do path depois do prefixo.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: toggle-master-ingress
   namespace: toggle-master
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
   rules:
     - http:
         paths:
-          # auth-service — POST /admin/keys (com MASTER_KEY), GET /validate
-          - path: /admin/keys
-            pathType: Exact
+          - path: /auth(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: auth-service
                 port:
                   number: 8001
-          - path: /validate
-            pathType: Exact
-            backend:
-              service:
-                name: auth-service
-                port:
-                  number: 8001
-
-          # flag-service — /flags e /flags/<name>
-          - path: /flags
-            pathType: Prefix
+          - path: /flags(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: flag-service
                 port:
                   number: 8002
-
-          # targeting-service — /rules e /rules/<flag_name>
-          - path: /rules
-            pathType: Prefix
+          - path: /targeting(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: targeting-service
                 port:
                   number: 8003
-
-          # evaluation-service — GET /evaluate?user_id=...&flag_name=...
-          - path: /evaluate
-            pathType: Exact
+          - path: /evaluation(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: evaluation-service
                 port:
                   number: 8004
+          - path: /analytics(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: analytics-service
+                port:
+                  number: 8005

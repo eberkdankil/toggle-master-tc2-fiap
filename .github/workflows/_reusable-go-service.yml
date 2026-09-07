@@ -56,16 +56,20 @@ jobs:
         with:
           go-version: "1.21"
       # Sem isso, o golangci-lint não consegue "type-check" pacotes externos
-      # (ex: driver do Postgres) — faltava dado de export das dependências.
+      # (driver do Postgres, go-redis, etc) — faltava dado de export das
+      # dependências.
       #
-      # `go mod download` em vez de `go mod tidy` de propósito: o `tidy`
+      # `go build ./...` em vez de `go mod tidy` de propósito: o `tidy`
       # aciona a troca automática de toolchain do Go (por causa do
-      # golang.org/x/crypto v0.55.0, que exige Go >= 1.25) e regrava isso no
-      # go.mod local do job — aí o golangci-lint (compilado com Go 1.24)
-      # recusa rodar contra um módulo "mais novo" que ele mesmo. `download`
-      # só baixa as dependências pro cache, sem mexer no go.mod.
+      # golang.org/x/crypto v0.55.0 no auth-service, que exige Go >= 1.25) e
+      # regrava isso no go.mod local do job — aí o golangci-lint (compilado
+      # com Go 1.24) recusa rodar contra um módulo "mais novo" que ele
+      # mesmo. `go mod download` sozinho não bastou (só baixa os módulos,
+      # não compila — o golangci-lint continuava sem dado de export pro
+      # go-redis do evaluation-service). `go build` compila de verdade e,
+      # como `download`, não mexe no go.mod.
       - working-directory: ${{ inputs.service_path }}
-        run: go mod download
+        run: go build ./...
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
