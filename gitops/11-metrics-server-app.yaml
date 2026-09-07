@@ -1,0 +1,35 @@
+# "App cuidando de app", mesmo padrão do ingress-nginx (09-ingress-nginx-app.yaml).
+# Sem isso, os dois HPAs (evaluation-service e analytics-service) não
+# conseguem ler utilização de CPU: "unable to fetch metrics from resource
+# metrics API (get pods.metrics.k8s.io)".
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://kubernetes-sigs.github.io/metrics-server
+    chart: metrics-server
+    targetRevision: "3.14.0"
+    helm:
+      values: |
+        # Gotcha conhecido no EKS: o certificado do kubelet não é validado
+        # pela CA que o metrics-server espera por padrão — sem essa flag,
+        # ele fica de pé mas nunca reporta métrica nenhuma (erros de TLS
+        # nos logs do pod, HPA continua "unknown").
+        args:
+          - --kubelet-insecure-tls
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

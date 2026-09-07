@@ -11,7 +11,10 @@ no repo `togglemaster-infra`). Arquivos numerados = ordem de aplicação.
 | `01-secret.yaml.example` | Modelo do Secret — **o real (`01-secret.yaml`) não é commitado** |
 | `02-configmap.yaml` | Config não-sensível — tem placeholders `__ASSIM__` pra endpoints que mudam a cada `terraform apply` |
 | `03` a `07` | Deployment + Service de cada um dos 5 microsserviços, imagem vindo do ECR |
-| `08-hpa.yaml` | Autoscaling do evaluation-service e analytics-service (precisa do `metrics-server` instalado no cluster) |
+| `08-hpa.yaml` | Autoscaling do evaluation-service e analytics-service |
+| `09-ingress-nginx-app.yaml` | Application do ArgoCD que instala o ingress-nginx (Helm) |
+| `10-ingress.yaml` | Ingress com prefixo por serviço (`/auth`, `/flags`, `/targeting`, `/evaluation`, `/analytics`) |
+| `11-metrics-server-app.yaml` | Application do ArgoCD que instala o metrics-server (Helm) — necessário pro `08-hpa.yaml` funcionar |
 
 ## Antes do primeiro deploy (depois de toda recriação da infra)
 
@@ -31,10 +34,9 @@ workflow) no repo. Ele faz tudo isso automaticamente:
 `01-secret.yaml.example` continua aqui só como documentação do formato — não
 precisa mais criar `01-secret.yaml` manualmente, o bootstrap cobre isso.
 
-**metrics-server** (pra HPA funcionar, não coberto pelo bootstrap):
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-```
+`ingress-nginx` e `metrics-server` também são sincronizados automaticamente
+pelo ArgoCD (`09-ingress-nginx-app.yaml`, `11-metrics-server-app.yaml`) — não
+precisa de nenhum `kubectl apply` manual pra eles.
 
 ## Por que não tem AWS_ACCESS_KEY_ID/SECRET nos Deployments
 
