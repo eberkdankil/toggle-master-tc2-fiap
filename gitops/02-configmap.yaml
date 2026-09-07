@@ -22,8 +22,8 @@ data:
   flag-service-url: http://flag-service:8002
   targeting-service-url: http://targeting-service:8003
 
-  redis-url: "redis://__REDIS_ENDPOINT__:6379"
+  redis-url: "redis://togglemaster-redis.y5from.0001.use1.cache.amazonaws.com:6379"
 
-  aws-sqs-url: "__SQS_QUEUE_URL__"
+  aws-sqs-url: "https://sqs.us-east-1.amazonaws.com/667434694207/togglemaster-events"
   aws-dynamodb-table: "ToggleMasterAnalytics"
   aws-region: "us-east-1"
