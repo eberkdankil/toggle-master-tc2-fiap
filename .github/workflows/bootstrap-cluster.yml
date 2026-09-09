@@ -43,12 +43,20 @@ jobs:
           echo "sqs_url=$(aws sqs get-queue-url --queue-name togglemaster-events --query QueueUrl --output text)" >> "$GITHUB_OUTPUT"
 
       # ConfigMap fica versionado no gitops/ (o ArgoCD é quem aplica de
-      # verdade) — aqui só reescrevemos os placeholders e comitamos, mesmo
+      # verdade) — aqui só reescrevemos os valores e comitamos, mesmo
       # mecanismo que os workflows de serviço usam pra tag de imagem.
+      #
+      # Substituímos pelo NOME DA CHAVE (redis-url:/aws-sqs-url:), não pelo
+      # placeholder __ASSIM__ — se fosse pelo placeholder, só funcionaria na
+      # primeira vez: depois que o valor real é commitado, o placeholder não
+      # existe mais no arquivo, e uma próxima recriação da infra (com
+      # endpoints novos) não acharia nada pra substituir, deixando o
+      # ConfigMap preso no endpoint antigo. Casando pela chave, funciona
+      # igual da primeira à centésima vez.
       - name: Atualizar endpoints no gitops/02-configmap.yaml
         run: |
-          sed -i -E "s#__REDIS_ENDPOINT__#${{ steps.aws-endpoints.outputs.redis }}#" gitops/02-configmap.yaml
-          sed -i -E "s#__SQS_QUEUE_URL__#${{ steps.aws-endpoints.outputs.sqs_url }}#" gitops/02-configmap.yaml
+          sed -i -E "s#^(\s*redis-url:).*#\1 \"redis://${{ steps.aws-endpoints.outputs.redis }}:6379\"#" gitops/02-configmap.yaml
+          sed -i -E "s#^(\s*aws-sqs-url:).*#\1 \"${{ steps.aws-endpoints.outputs.sqs_url }}\"#" gitops/02-configmap.yaml
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
