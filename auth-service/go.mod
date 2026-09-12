@@ -21,6 +21,6 @@ require (
 	// e dê push — o job security-scan deve falhar. Depois volte pra v0.55.0 (ou
 	// mais nova) pra mostrar passando de novo. Instrução completa no README.md
 	// deste serviço, caso esse comentário não sobreviva a um `go mod tidy`.
-	golang.org/x/crypto v0.0.0 // indirect
+	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
 	golang.org/x/text v0.14.0 // indirect
 )
