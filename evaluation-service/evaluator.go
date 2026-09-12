@@ -109,8 +109,8 @@ func (a *App) fetchFlag(flagName string) (*Flag, error) {
 	// flag-service. O host (a.FlagServiceURL) é fixo, vem de configuração,
 	// não do usuário, então isso não é um SSRF cross-host de verdade — mas
 	// sem escapar, dava pra confundir o roteamento dentro do mesmo host.
-	// reqURL := fmt.Sprintf("%s/flags/%s", a.FlagServiceURL, url.PathEscape(flagName))
-	reqURL := fmt.Sprintf("%s/flags/%s", a.FlagServiceURL, flagName)
+	reqURL := fmt.Sprintf("%s/flags/%s", a.FlagServiceURL, url.PathEscape(flagName))
+	// reqURL := fmt.Sprintf("%s/flags/%s", a.FlagServiceURL, flagName)
 
 
 	apiKey := os.Getenv("SERVICE_API_KEY")
@@ -140,8 +140,8 @@ func (a *App) fetchFlag(flagName string) (*Flag, error) {
 
 func (a *App) fetchRule(flagName string) (*TargetingRule, error) {
 	// Mesma justificativa do fetchFlag acima.
-	// reqURL := fmt.Sprintf("%s/rules/%s", a.TargetingServiceURL, url.PathEscape(flagName))
-	reqURL := fmt.Sprintf("%s/rules/%s", a.TargetingServiceURL, flagName)
+	reqURL := fmt.Sprintf("%s/rules/%s", a.TargetingServiceURL, url.PathEscape(flagName))
+	// reqURL := fmt.Sprintf("%s/rules/%s", a.TargetingServiceURL, flagName)
 	apiKey := os.Getenv("SERVICE_API_KEY") // Usa a mesma chave
 	req, _ := http.NewRequest("GET", reqURL, nil) // #nosec G704 -- host fixo (config), path escapado acima
 	req.Header.Set("Authorization", "Bearer "+apiKey)
