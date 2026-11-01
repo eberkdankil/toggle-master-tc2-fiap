@@ -7,6 +7,12 @@
 # `presets.logsCollection`/`kubernetesAttributes` fazem o trabalho pesado
 # (parsing de log do containerd, RBAC pra ler metadata de pod/namespace) —
 # só precisamos adicionar o exporter pro Loki e ligá-lo na pipeline.
+#
+# O exporter dedicado "loki" foi removido do distro contrib (não está mais
+# na lista de exporters válidos da v0.178.0) — o Loki passou a aceitar OTLP
+# nativo desde a v3.0, então agora usamos o exporter genérico "otlphttp"
+# apontando pro endpoint /otlp dele (o Loki 3.6.11 confirmado em produção
+# aqui já suporta isso).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -56,14 +62,16 @@ spec:
 
         config:
           exporters:
-            loki:
-              endpoint: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+            otlphttp/loki:
+              endpoint: http://loki.observability.svc.cluster.local:3100/otlp
+              tls:
+                insecure: true
             debug:
               verbosity: basic
           service:
             pipelines:
               logs:
-                exporters: [loki, debug]
+                exporters: [otlphttp/loki, debug]
 
   destination:
     server: https://kubernetes.default.svc
