@@ -59,6 +59,14 @@ spec:
             # Sem AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY de propósito — o
             # node do EKS já usa a LabRole, o aws-sdk-go pega credenciais
             # sozinho via metadata do EC2 (IMDS).
+            # Fase 4 — observabilidade (OpenTelemetry).
+            - name: OTEL_SERVICE_NAME
+              value: "evaluation-service"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: otel-exporter-otlp-endpoint
           resources:
             requests:
               cpu: 200m

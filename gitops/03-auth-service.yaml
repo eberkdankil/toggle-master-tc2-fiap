@@ -38,6 +38,14 @@ spec:
                 secretKeyRef:
                   name: toggle-master-secret
                   key: master-key
+            # Fase 4 — observabilidade (OpenTelemetry).
+            - name: OTEL_SERVICE_NAME
+              value: "auth-service"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: otel-exporter-otlp-endpoint
           resources:
             requests:
               cpu: 100m

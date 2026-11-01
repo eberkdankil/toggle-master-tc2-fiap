@@ -36,6 +36,20 @@ spec:
                 secretKeyRef:
                   name: toggle-master-secret
                   key: targeting-db-url
+            # Fase 4 — observabilidade (OpenTelemetry). Ver comentário
+            # equivalente no flag-service sobre o PROTOCOL.
+            - name: OTEL_SERVICE_NAME
+              value: "targeting-service"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: otel-exporter-otlp-endpoint
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: otel-exporter-otlp-protocol
           resources:
             requests:
               cpu: 100m

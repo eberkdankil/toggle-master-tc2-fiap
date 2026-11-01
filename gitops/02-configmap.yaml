@@ -27,3 +27,12 @@ data:
   aws-sqs-url: "https://sqs.us-east-1.amazonaws.com/851725230347/togglemaster-events"
   aws-dynamodb-table: "ToggleMasterAnalytics"
   aws-region: "us-east-1"
+
+  # Fase 4 — observabilidade. O prefixo "http://" sinaliza "sem TLS" pro SDK
+  # do OTel (Go e Python interpretam isso do mesmo jeito). Nome do Service
+  # confirmado via `kubectl -n observability get svc` (convenção do chart:
+  # "<release>-opentelemetry-collector").
+  otel-exporter-otlp-endpoint: "http://otel-collector-traces-opentelemetry-collector.observability.svc.cluster.local:4317"
+  # Só usado pelos serviços Python — o Go já usa grpc por causa do pacote
+  # importado (otlptracegrpc), independente dessa env var.
+  otel-exporter-otlp-protocol: "grpc"

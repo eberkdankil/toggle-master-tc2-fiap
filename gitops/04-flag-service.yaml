@@ -36,6 +36,22 @@ spec:
                 secretKeyRef:
                   name: toggle-master-secret
                   key: flags-db-url
+            # Fase 4 — observabilidade (OpenTelemetry). PROTOCOL é necessário
+            # aqui porque o default do SDK Python é http/protobuf, diferente
+            # do grpc que o Go usa — sem isso ele tentaria falar HTTP com a
+            # porta 4317, que só fala gRPC.
+            - name: OTEL_SERVICE_NAME
+              value: "flag-service"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: otel-exporter-otlp-endpoint
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: otel-exporter-otlp-protocol
           resources:
             requests:
               cpu: 100m

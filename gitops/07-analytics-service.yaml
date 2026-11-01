@@ -43,6 +43,20 @@ spec:
                   key: aws-region
             # Sem AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY de propósito — ver
             # comentário no evaluation-service (LabRole via node do EKS).
+            # Fase 4 — observabilidade (OpenTelemetry). Ver comentário
+            # equivalente no flag-service sobre o PROTOCOL.
+            - name: OTEL_SERVICE_NAME
+              value: "analytics-service"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: otel-exporter-otlp-endpoint
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              valueFrom:
+                configMapKeyRef:
+                  name: toggle-master-config
+                  key: otel-exporter-otlp-protocol
           resources:
             requests:
               cpu: 100m
