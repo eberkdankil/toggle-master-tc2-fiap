@@ -24,6 +24,12 @@ spec:
       values: |
         mode: daemonset
 
+        # Mesmo motivo do otel-collector-traces: image.repository não tem
+        # mais default a partir da v0.178.0, e esse release usa
+        # filelog/k8sattributes/loki — tudo exclusivo do distro "contrib".
+        image:
+          repository: otel/opentelemetry-collector-contrib
+
         resources:
           requests:
             cpu: 100m

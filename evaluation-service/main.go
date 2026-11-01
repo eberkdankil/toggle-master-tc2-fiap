@@ -6,12 +6,16 @@ import (
 	"net/http"
 	"os"
 	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
+
+const serviceName = "evaluation-service"
 
 // Contexto global para o Redis
 var ctx = context.Background()
@@ -28,6 +32,10 @@ type App struct {
 
 func main() {
 	_ = godotenv.Load() // Carrega .env para dev local
+
+	// --- OpenTelemetry (Fase 4 — observabilidade) ---
+	shutdownTracer := initTracer(ctx, serviceName)
+	defer shutdownTracer(ctx)
 
 	// --- Configuração ---
 	port := os.Getenv("PORT")
@@ -84,9 +92,13 @@ func main() {
 		log.Println("Cliente SQS inicializado com sucesso.")
 	}
 
-	// Cliente HTTP (com timeout)
+	// Cliente HTTP (com timeout). Transport instrumentado com otelhttp: cada
+	// chamada pro flag-service/targeting-service vira um span filho do
+	// trace da requisição em /evaluate — é isso que mostra o "caminho da
+	// requisição" completo no APM (Fase 4, Distributed Tracing).
 	httpClient := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout:   5 * time.Second,
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
 
 	// Cria a instância da App
@@ -104,8 +116,10 @@ func main() {
 	mux.HandleFunc("/health", app.healthHandler)
 	mux.HandleFunc("/evaluate", app.evaluationHandler)
 
+	handler := otelhttp.NewHandler(mux, serviceName)
+
 	log.Printf("Serviço de Avaliação (Go) rodando na porta %s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
 }

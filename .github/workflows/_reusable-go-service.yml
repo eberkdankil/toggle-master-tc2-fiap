@@ -55,26 +55,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.21"
-      # Sem isso, o golangci-lint não consegue "type-check" pacotes externos
-      # (driver do Postgres, go-redis, etc) — faltava dado de export das
-      # dependências.
-      #
-      # `go build ./...` em vez de `go mod tidy` de propósito: o `tidy`
-      # aciona a troca automática de toolchain do Go (por causa do
-      # golang.org/x/crypto v0.55.0 no auth-service, que exige Go >= 1.25) e
-      # regrava isso no go.mod local do job — aí o golangci-lint (compilado
-      # com Go 1.24) recusa rodar contra um módulo "mais novo" que ele
-      # mesmo. `go mod download` sozinho não bastou (só baixa os módulos,
-      # não compila — o golangci-lint continuava sem dado de export pro
-      # go-redis do evaluation-service). `go build` compila de verdade e,
-      # como `download`, não mexe no go.mod.
+      # `go mod tidy` normal — sem medo de bump de toolchain aqui, porque não
+      # usamos mais o binário pré-compilado da golangci-lint-action (ficava
+      # preso numa versão do Go mais antiga que a exigida pelos nossos
+      # módulos, ex: golang.org/x/crypto e as libs do OTel pedem Go 1.25+/1.26+).
+      # Instalar via `go install` (igual já fazemos com o gosec) usa sempre a
+      # toolchain corrente — nunca mais fica desatualizado em relação ao
+      # próprio projeto.
       - working-directory: ${{ inputs.service_path }}
-        run: go build ./...
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: ${{ inputs.service_path }}
-          args: --timeout=5m
+        run: |
+          go mod tidy
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+          golangci-lint run --timeout=5m ./...
 
   security-scan:
     name: Security Scan (SAST & SCA)

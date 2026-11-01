@@ -30,4 +30,7 @@ USER appuser
 
 EXPOSE 8005
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8005", "--workers", "4", "--threads", "2", "--timeout", "120", "app:app"]
+# opentelemetry-instrument faz auto-instrumentação (Flask/botocore) sem
+# mexer no código do app — lê config via env vars (OTEL_SERVICE_NAME,
+# OTEL_EXPORTER_OTLP_ENDPOINT, ver gitops/02-configmap.yaml e 07-analytics-service.yaml).
+CMD ["opentelemetry-instrument", "gunicorn", "--bind", "0.0.0.0:8005", "--workers", "4", "--threads", "2", "--timeout", "120", "app:app"]

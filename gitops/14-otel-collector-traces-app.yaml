@@ -26,6 +26,14 @@ spec:
         mode: deployment
         replicaCount: 1
 
+        # A partir da v0.178.0 do chart, image.repository não tem mais
+        # default — precisa declarar explicitamente. Usamos o distro
+        # "contrib" (não o "core") porque mesmo este release usa o exporter
+        # "prometheus", e o outro release (logs) usa filelog/k8sattributes/
+        # loki — tudo componente exclusivo do contrib.
+        image:
+          repository: otel/opentelemetry-collector-contrib
+
         resources:
           requests:
             cpu: 100m
