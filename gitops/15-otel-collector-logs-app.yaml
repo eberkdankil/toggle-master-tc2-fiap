@@ -1,0 +1,71 @@
+# OTel Collector em modo "daemonset" — um pod por node, lê os logs de TODOS
+# os containers do cluster (via hostPath /var/log/pods) e manda pro Loki.
+# É a peça que cumpre literalmente o requisito "Loki centraliza TODOS os
+# logs dos contêineres do cluster", sem precisar instalar Promtail/Grafana
+# Agent separado — o próprio OTel Collector também é o coletor de log.
+#
+# `presets.logsCollection`/`kubernetesAttributes` fazem o trabalho pesado
+# (parsing de log do containerd, RBAC pra ler metadata de pod/namespace) —
+# só precisamos adicionar o exporter pro Loki e ligá-lo na pipeline.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-collector-logs
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    targetRevision: "0.178.0"
+    helm:
+      releaseName: otel-collector-logs
+      values: |
+        mode: daemonset
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 300m
+            memory: 256Mi
+
+        ports:
+          otlp:
+            enabled: false
+          otlp-http:
+            enabled: false
+
+        service:
+          enabled: false
+
+        presets:
+          logsCollection:
+            enabled: true
+            includeCollectorLogs: false
+          kubernetesAttributes:
+            enabled: true
+
+        config:
+          exporters:
+            loki:
+              endpoint: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+            debug:
+              verbosity: basic
+          service:
+            pipelines:
+              logs:
+                exporters: [loki, debug]
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

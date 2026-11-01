@@ -1,0 +1,103 @@
+# "App cuidando de app", mesmo padrão do ingress-nginx/metrics-server.
+# kube-prometheus-stack = Prometheus + Alertmanager + Grafana + Prometheus
+# Operator + node-exporter + kube-state-metrics, tudo num chart só.
+#
+# Sem persistência de propósito (Grafana/Prometheus usam armazenamento
+# efêmero — se o pod reiniciar, perde dashboard/histórico). Simplificação
+# consciente: o cluster do EKS não tem o EBS CSI driver instalado (nenhum
+# PVC foi usado até agora no projeto), então pedir volume persistente aqui
+# ia travar os pods em Pending esperando um StorageClass que não existe.
+# Pra um ambiente efêmero que já é destruído/recriado com frequência, não
+# compensa o esforço de instalar o CSI driver só por causa disso agora.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "92.14.1"
+    helm:
+      values: |
+        # EKS tem control plane gerenciado — etcd/scheduler/controller-manager
+        # não são expostos pra scrape (ao contrário de cluster self-managed).
+        # Sem desabilitar isso, fica um monte de ServiceMonitor falhando à
+        # toa nos logs/alertas.
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+
+        grafana:
+          persistence:
+            enabled: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          # Senha gerada automaticamente pelo chart num Secret
+          # (kube-prometheus-stack-grafana) — não fica em texto puro aqui.
+          # Recuperar com:
+          #   kubectl -n observability get secret kube-prometheus-stack-grafana \
+          #     -o jsonpath="{.data.admin-password}" | base64 -d
+
+        prometheus:
+          prometheusSpec:
+            retention: 6h
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+            # storageSpec vazio = Prometheus Operator usa emptyDir (efêmero),
+            # consistente com a decisão de não usar PVC por enquanto.
+
+        alertmanager:
+          alertmanagerSpec:
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 128Mi
+
+        prometheus-node-exporter:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+        kube-state-metrics:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

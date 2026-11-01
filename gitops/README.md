@@ -15,6 +15,10 @@ no repo `togglemaster-infra`). Arquivos numerados = ordem de aplicação.
 | `09-ingress-nginx-app.yaml` | Application do ArgoCD que instala o ingress-nginx (Helm) |
 | `10-ingress.yaml` | Ingress com prefixo por serviço (`/auth`, `/flags`, `/targeting`, `/evaluation`, `/analytics`) |
 | `11-metrics-server-app.yaml` | Application do ArgoCD que instala o metrics-server (Helm) — necessário pro `08-hpa.yaml` funcionar |
+| `12-kube-prometheus-stack-app.yaml` | Prometheus + Alertmanager + Grafana (Helm), namespace `observability` |
+| `13-loki-app.yaml` | Loki em modo SingleBinary (Helm), namespace `observability` |
+| `14-otel-collector-traces-app.yaml` | OTel Collector (deployment) — recebe OTLP dos microsserviços, exporta métricas pro Prometheus |
+| `15-otel-collector-logs-app.yaml` | OTel Collector (daemonset) — coleta logs de todos os pods do cluster, exporta pro Loki |
 
 ## Antes do primeiro deploy (depois de toda recriação da infra)
 
@@ -34,9 +38,36 @@ workflow) no repo. Ele faz tudo isso automaticamente:
 `01-secret.yaml.example` continua aqui só como documentação do formato — não
 precisa mais criar `01-secret.yaml` manualmente, o bootstrap cobre isso.
 
-`ingress-nginx` e `metrics-server` também são sincronizados automaticamente
-pelo ArgoCD (`09-ingress-nginx-app.yaml`, `11-metrics-server-app.yaml`) — não
-precisa de nenhum `kubectl apply` manual pra eles.
+`ingress-nginx`, `metrics-server` e a stack de observabilidade (Prometheus/
+Grafana/Loki/OTel Collector) também são sincronizados automaticamente pelo
+ArgoCD — não precisa de nenhum `kubectl apply` manual pra nenhum deles.
+
+## Observabilidade (Fase 4)
+
+⚠️ **Antes de sincronizar**: o cluster hoje tem só 2 nodes `t3.medium`
+rodando os 5 apps + ingress-nginx + ArgoCD + metrics-server. A stack nova
+(kube-prometheus-stack + Loki + 2 releases do OTel Collector) é pesada —
+rode `kubectl top nodes` depois do sync pra confirmar que não faltou
+recurso. Se faltar, bump do node group (`desired_size`) em
+`terraform/modules/eks` no repo `togglemaster-infra`.
+
+- Senha do Grafana (gerada automaticamente, não é texto puro em lugar nenhum):
+  ```bash
+  kubectl -n observability get secret kube-prometheus-stack-grafana \
+    -o jsonpath="{.data.admin-password}" | base64 -d
+  ```
+- Acesso à UI do Grafana (sem Ingress configurado pra ele ainda):
+  ```bash
+  kubectl -n observability port-forward svc/kube-prometheus-stack-grafana 3000:80
+  ```
+- Endpoint OTLP pros microsserviços mandarem telemetria (usado na Fase B,
+  instrumentação — ainda não configurado nos Deployments):
+  `otel-collector-traces.observability.svc.cluster.local:4317` (gRPC) ou
+  `:4318` (HTTP).
+- O exporter de traces pro New Relic só entra na Fase C (depende da conta
+  existir) — por enquanto as traces só aparecem no log do pod
+  (`kubectl -n observability logs deploy/otel-collector-traces-opentelemetry-collector`),
+  o que já prova que a ingestão funciona.
 
 ## Por que não tem AWS_ACCESS_KEY_ID/SECRET nos Deployments
 

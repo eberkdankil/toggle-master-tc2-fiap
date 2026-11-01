@@ -1,0 +1,93 @@
+# OTel Collector em modo "deployment" — recebe OTLP (gRPC/HTTP) dos 5
+# microsserviços (ainda não instrumentados, isso é a Fase B do plano) e
+# expõe métricas pro Prometheus via scrape. Endpoint pros apps usarem:
+#   otel-collector-traces.observability.svc.cluster.local:4317 (gRPC)
+#   otel-collector-traces.observability.svc.cluster.local:4318 (HTTP)
+#
+# O exporter de traces pro New Relic (Fase C) ainda NÃO está configurado
+# aqui de propósito — depende de criar a conta e ter a license key, que
+# ainda não existem nesta fase. Por enquanto as traces só vão pro exporter
+# "debug" (aparecem no log do pod, prova que a ingestão funciona).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-collector-traces
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    targetRevision: "0.178.0"
+    helm:
+      releaseName: otel-collector-traces
+      values: |
+        mode: deployment
+        replicaCount: 1
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+
+        ports:
+          otlp:
+            enabled: true
+          otlp-http:
+            enabled: true
+          metrics:
+            enabled: true
+            containerPort: 8889
+            servicePort: 8889
+            protocol: TCP
+
+        service:
+          enabled: true
+
+        serviceMonitor:
+          enabled: true
+
+        config:
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+          processors:
+            batch: {}
+          exporters:
+            prometheus:
+              endpoint: 0.0.0.0:8889
+            debug:
+              verbosity: basic
+            # FASE C: adicionar aqui um exporter "otlphttp/newrelic" apontando
+            # pro endpoint OTLP do New Relic, com a license key vinda de um
+            # Secret (via env var, nunca em texto puro) — e incluir esse
+            # exporter na pipeline de traces abaixo.
+          service:
+            pipelines:
+              traces:
+                receivers: [otlp]
+                processors: [batch]
+                exporters: [debug]
+              metrics:
+                receivers: [otlp]
+                processors: [batch]
+                exporters: [prometheus, debug]
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,87 @@
+# Loki em modo "SingleBinary" (monolítico) com storage em filesystem — sem
+# S3/object storage, sem réplicas extras de read/write/backend. É o modo
+# recomendado pela própria Grafana pra dev/test, bem mais leve que o modo
+# distribuído e sem exigir um bucket novo só pra isso.
+#
+# Sem persistência (emptyDir) pelo mesmo motivo do kube-prometheus-stack:
+# não temos EBS CSI driver instalado, e o ambiente já é recriado com
+# frequência — perder histórico de log num restart é um trade-off aceitável
+# aqui.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: "7.5.0"
+    helm:
+      values: |
+        deploymentMode: SingleBinary
+
+        loki:
+          auth_enabled: false
+          commonConfig:
+            replication_factor: 1
+          schemaConfig:
+            configs:
+              - from: "2024-01-01"
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: loki_index_
+                  period: 24h
+          storage:
+            type: filesystem
+          limits_config:
+            retention_period: 24h
+
+        singleBinary:
+          replicas: 1
+          persistence:
+            enabled: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+        # Modo SingleBinary não usa esses componentes (são do modo distribuído).
+        backend:
+          replicas: 0
+        read:
+          replicas: 0
+        write:
+          replicas: 0
+
+        gateway:
+          enabled: false
+
+        monitoring:
+          serviceMonitor:
+            enabled: true
+          selfMonitoring:
+            enabled: false
+          lokiCanary:
+            enabled: false
+
+        test:
+          enabled: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
