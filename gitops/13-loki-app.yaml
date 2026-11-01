@@ -58,13 +58,12 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
-
-        extraVolumes:
-          - name: loki-data
-            emptyDir: {}
-        extraVolumeMounts:
-          - name: loki-data
-            mountPath: /var/loki
+          extraVolumes:
+            - name: loki-data
+              emptyDir: {}
+          extraVolumeMounts:
+            - name: loki-data
+              mountPath: /var/loki
 
         # Cache de performance opcional (memcached) — desligado porque o
         # node não tinha memória sobrando pra ele (pod ficava Pending) e,
