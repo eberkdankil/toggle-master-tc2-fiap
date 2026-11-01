@@ -7,6 +7,12 @@
 # não temos EBS CSI driver instalado, e o ambiente já é recriado com
 # frequência — perder histórico de log num restart é um trade-off aceitável
 # aqui.
+#
+# Com persistence.enabled=false o chart NÃO monta nada em /var/loki — o
+# root filesystem fica read-only nesse path e o módulo ruler-storage falha
+# ao tentar criar o diretório ("mkdir /var/loki: read-only file system").
+# O fix é montar um emptyDir explícito ali (extraVolumes/extraVolumeMounts),
+# mantendo a mesma filosofia "efêmero de propósito" acima.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -52,6 +58,19 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+
+        extraVolumes:
+          - name: loki-data
+            emptyDir: {}
+        extraVolumeMounts:
+          - name: loki-data
+            mountPath: /var/loki
+
+        # Cache de performance opcional (memcached) — desligado porque o
+        # node não tinha memória sobrando pra ele (pod ficava Pending) e,
+        # numa carga de demo como essa, não faz falta.
+        chunksCache:
+          enabled: false
 
         # Modo SingleBinary não usa esses componentes (são do modo distribuído).
         backend:
