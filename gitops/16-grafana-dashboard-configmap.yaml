@@ -1,0 +1,105 @@
+# Dashboard custom do Grafana (Fase 4, Fase D — observabilidade).
+# Não é uma Application do ArgoCD porque não precisa de Helm nenhum: é só um
+# ConfigMap comum, no mesmo padrão dos Deployments 03-07. O label
+# "grafana_dashboard: \"1\"" é o que o sidecar do Grafana (habilitado em
+# 12-kube-prometheus-stack-app.yaml) usa pra descobrir e importar isso
+# sozinho — sem precisar fazer upload manual pela UI.
+#
+# 3 painéis mínimos pedidos pelo desafio:
+#   1. Uso de recursos do cluster (CPU/memória por pod do namespace toggle-master)
+#   2. Taxa de requisições por serviço (métrica HTTP exportada via OTel -> Prometheus)
+#   3. Logs em tempo real (datasource Loki, namespace toggle-master)
+#
+# O painel de "taxa de requisições" usa uma regex no nome da métrica porque
+# versões diferentes dos SDKs OTel (Go vs Python, e entre minor versions)
+# podem exportar http_server_duration_* OU http_server_request_duration_*
+# (mudança de semantic convention) — cobre os dois sem depender de saber
+# exatamente qual cada serviço usa.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: togglemaster-grafana-dashboard
+  namespace: observability
+  labels:
+    grafana_dashboard: "1"
+data:
+  togglemaster-overview.json: |
+    {
+      "title": "ToggleMaster - Visao Geral",
+      "uid": "togglemaster-overview",
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "time": { "from": "now-15m", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "CPU por pod (toggle-master)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [
+            {
+              "datasource": "Prometheus",
+              "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"toggle-master\"}[5m]))",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Memoria por pod (toggle-master)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+          "targets": [
+            {
+              "datasource": "Prometheus",
+              "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"toggle-master\"})",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Taxa de requisicoes por servico (OTel HTTP)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "description": "Cobre http_server_duration_* (semconv antigo) e http_server_request_duration_* (semconv novo). Se vier vazio, rode 'kubectl -n observability port-forward svc/otel-collector-traces-opentelemetry-collector 8889:8889' + 'curl localhost:8889/metrics' pra ver o nome real exportado e ajustar a regex.",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+          "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+          "targets": [
+            {
+              "datasource": "Prometheus",
+              "expr": "sum by (service_name) (rate({__name__=~\"http_server_duration_milliseconds_count|http_server_request_duration_seconds_count|http_server_duration_seconds_count\"}[1m]))",
+              "legendFormat": "{{service_name}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Logs ao vivo (toggle-master)",
+          "type": "logs",
+          "datasource": "Loki",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+          "options": {
+            "showTime": true,
+            "wrapLogMessages": true,
+            "sortOrder": "Descending"
+          },
+          "targets": [
+            {
+              "datasource": "Loki",
+              "expr": "{k8s_namespace_name=\"toggle-master\"}",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    }

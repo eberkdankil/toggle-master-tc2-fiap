@@ -19,6 +19,7 @@ no repo `togglemaster-infra`). Arquivos numerados = ordem de aplicação.
 | `13-loki-app.yaml` | Loki em modo SingleBinary (Helm), namespace `observability` |
 | `14-otel-collector-traces-app.yaml` | OTel Collector (deployment) — recebe OTLP dos microsserviços, exporta métricas pro Prometheus |
 | `15-otel-collector-logs-app.yaml` | OTel Collector (daemonset) — coleta logs de todos os pods do cluster, exporta pro Loki |
+| `16-grafana-dashboard-configmap.yaml` | Dashboard custom do Grafana (Fase D) — CPU/memória por pod, taxa de requisições por serviço, logs ao vivo |
 
 ## Antes do primeiro deploy (depois de toda recriação da infra)
 
@@ -68,6 +69,13 @@ recurso. Se faltar, bump do node group (`desired_size`) em
   existir) — por enquanto as traces só aparecem no log do pod
   (`kubectl -n observability logs deploy/otel-collector-traces-opentelemetry-collector`),
   o que já prova que a ingestão funciona.
+- **Dashboard custom (Fase D)**: importado automaticamente pelo sidecar do
+  Grafana a partir do `16-grafana-dashboard-configmap.yaml` — procurar por
+  "ToggleMaster - Visao Geral" na UI, sem precisar de upload manual. Se o
+  painel de "taxa de requisições" vier vazio, provavelmente é porque os
+  SDKs OTel instalados exportam a métrica HTTP com um nome diferente do
+  esperado (semconv antigo vs novo) — ver a descrição do painel pra como
+  conferir e ajustar a regex da query.
 
 ## Por que não tem AWS_ACCESS_KEY_ID/SECRET nos Deployments
 
