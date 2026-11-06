@@ -40,10 +40,12 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 128Mi
+              memory: 192Mi
             limits:
               cpu: 500m
-              memory: 256Mi
+              # 256Mi causava OOMKilled (exit 137) no Grafana 13.x com os
+              # módulos de alerting/sidecar de dashboards/datasources ativos.
+              memory: 512Mi
           # Senha gerada automaticamente pelo chart num Secret
           # (kube-prometheus-stack-grafana) — não fica em texto puro aqui.
           # Recuperar com:
