@@ -31,6 +31,29 @@ jobs:
       - name: Configurar kubectl
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
 
+      - name: Instalar Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.3"
+
+      # Os CRDs do Prometheus Operator (Prometheus, Alertmanager etc, usados
+      # pelo chart kube-prometheus-stack) excedem os 262144 bytes do limite
+      # da annotation last-applied-configuration — mesmo com
+      # "ServerSideApply=true" no syncOptions, o ArgoCD falhou em aplicá-los
+      # (erro real visto: "metadata.annotations: Too long"). É um problema
+      # conhecido desse chart específico; o workaround é instalar os CRDs
+      # fora do fluxo normal do Helm/ArgoCD, direto via server-side apply.
+      # Idempotente — seguro de rodar de novo numa infra que já tem os CRDs
+      # (por isso fica aqui, não precisa de passo manual a cada bootstrap).
+      - name: Instalar CRDs do Prometheus Operator (server-side apply)
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update
+          helm pull prometheus-community/kube-prometheus-stack --version 92.14.1 --untar --untardir /tmp/kps-chart
+          for f in $(find /tmp/kps-chart -type f -name "crd-*.yaml"); do
+            echo "Aplicando $f"
+            kubectl apply --server-side --force-conflicts -f "$f"
+          done
+
       # Nomes/identificadores são fixos no Terraform (togglemaster-auth, etc)
       # mesmo depois de destroy/recreate — só o hostname gerado muda.
       - name: Descobrir endpoints atuais na AWS

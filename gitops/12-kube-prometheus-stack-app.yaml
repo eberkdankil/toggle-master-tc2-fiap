@@ -23,6 +23,13 @@ spec:
     targetRevision: "92.14.1"
     helm:
       values: |
+        # CRDs instalados fora do ArgoCD (ver .github/workflows/bootstrap-cluster.yml)
+        # — eles excedem o limite de tamanho de annotation do apply normal do
+        # ArgoCD, então paramos de deixar o ArgoCD tentar (e falhar) sincronizar
+        # especificamente esses recursos.
+        crds:
+          enabled: false
+
         # EKS tem control plane gerenciado — etcd/scheduler/controller-manager
         # não são expostos pra scrape (ao contrário de cluster self-managed).
         # Sem desabilitar isso, fica um monte de ServiceMonitor falhando à
