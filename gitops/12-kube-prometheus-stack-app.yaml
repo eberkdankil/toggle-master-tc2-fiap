@@ -124,3 +124,10 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # Os CRDs deste chart (Prometheus, Alertmanager etc) excedem os
+      # 262144 bytes do limite da annotation "last-applied-configuration"
+      # do apply client-side padrão — sem isso o ArgoCD falha em criar os
+      # CRDs (erro "metadata.annotations: Too long") e o resto do chart
+      # sobe normal só que sem os CRDs, deixando Prometheus/Alertmanager
+      # sem nenhum pod criado ("ensure CRDs are installed first").
+      - ServerSideApply=true
