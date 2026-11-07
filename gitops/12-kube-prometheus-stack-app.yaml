@@ -83,6 +83,14 @@ spec:
         prometheus:
           prometheusSpec:
             retention: 6h
+            # Sem isso, o Prometheus só obedece ServiceMonitor/PodMonitor com
+            # o label "release: kube-prometheus-stack" (comportamento default
+            # do chart) — ignorando o ServiceMonitor que o chart do OTel
+            # Collector cria sozinho (release Helm diferente). Resultado real
+            # visto: metrica existe em /metrics do Collector, mas o Prometheus
+            # nunca raspa dali (nao aparece nem na lista de targets).
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
             resources:
               requests:
                 cpu: 200m
