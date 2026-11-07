@@ -70,14 +70,14 @@ data:
           "title": "Taxa de requisicoes por servico (OTel HTTP)",
           "type": "timeseries",
           "datasource": "Prometheus",
-          "description": "Cobre http_server_duration_* (semconv antigo) e http_server_request_duration_* (semconv novo). Se vier vazio, rode 'kubectl -n observability port-forward svc/otel-collector-traces-opentelemetry-collector 8889:8889' + 'curl localhost:8889/metrics' pra ver o nome real exportado e ajustar a regex.",
+          "description": "Confirmado via curl :8889/metrics em 2026-11-06: o nome real exportado e http_server_request_duration_seconds_count, com o servico identificado pelo label 'job' (nao 'service_name').",
           "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
           "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
           "targets": [
             {
               "datasource": "Prometheus",
-              "expr": "sum by (service_name) (rate({__name__=~\"http_server_duration_milliseconds_count|http_server_request_duration_seconds_count|http_server_duration_seconds_count\"}[1m]))",
-              "legendFormat": "{{service_name}}",
+              "expr": "sum by (job) (rate(http_server_request_duration_seconds_count[1m]))",
+              "legendFormat": "{{job}}",
               "refId": "A"
             }
           ]
