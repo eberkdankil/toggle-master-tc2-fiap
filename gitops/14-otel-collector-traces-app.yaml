@@ -58,13 +58,21 @@ spec:
 
         serviceMonitor:
           enabled: true
+          # honorLabels tem que ir dentro de metricsEndpoints — não existe
+          # campo "serviceMonitor.honorLabels" solto no chart (conferido no
+          # template templates/servicemonitor.yaml: os endpoints vêm de
+          # toYaml .Values.serviceMonitor.metricsEndpoints direto, chave
+          # desconhecida fora disso é ignorada em silêncio pelo Helm).
+          #
           # Sem isso, o Prometheus sobrescreve o label "job" que o Collector
           # já exporta por serviço (derivado de service.name, convenção
           # OTel->Prometheus) pelo nome do próprio scrape target
           # (otel-collector-traces-opentelemetry-collector) — resultado real
           # visto: todas as métricas apareciam com um job só, o do Collector,
-          # em vez de um job por microsserviço (auth-service, flag-service...).
-          honorLabels: true
+          # em vez de um job por microsserviço (auth-service, evaluation-service...).
+          metricsEndpoints:
+            - port: metrics
+              honorLabels: true
 
         config:
           receivers:
