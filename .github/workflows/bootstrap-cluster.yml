@@ -121,15 +121,22 @@ jobs:
             --from-literal=license-key="${{ secrets.NEWRELIC_LICENSE_KEY }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      # Fase E — contact points do Grafana Alerting (Discord + JSM
-      # Operations/Opsgenie-compatible). Vai num Secret (não ConfigMap),
-      # com o label grafana_alert: "1" que o sidecar do Grafana
-      # (sidecar.alerts em 12-kube-prometheus-stack-app.yaml) lê sozinho —
-      # nenhuma API key/webhook fica em texto puro no gitops/.
+      # Fase E — contact points do Grafana Alerting: Discord, JSM Operations
+      # (Opsgenie-compatible) e o self-healing (webhook de repository_dispatch
+      # pro self-heal.yml). Vai num Secret (não ConfigMap), com o label
+      # grafana_alert: "1" que o sidecar do Grafana (sidecar.alerts em
+      # 12-kube-prometheus-stack-app.yaml) lê sozinho — nenhuma API
+      # key/webhook/PAT fica em texto puro no gitops/.
+      #
+      # O contact point "github-self-heal" usa Custom Payload (campo
+      # payload.template) pra moldar o corpo exatamente como a API de
+      # dispatch do GitHub exige ({event_type, client_payload}) — um
+      # webhook genérico do Grafana manda o JSON de alerta dele mesmo, que
+      # o GitHub rejeitaria por faltar "event_type".
       #
       # A policy com "continue: true" nas duas primeiras rotas é o que faz
-      # um único alerta notificar os dois contact points ao mesmo tempo —
-      # sem isso, só o primeiro match na árvore de rotas dispararia.
+      # um único alerta notificar os três contact points (as duas que tem
+      # continue mais a última da cadeia).
       - name: Aplicar Secret de alerting do Grafana (contact points)
         run: |
           cat > /tmp/contactpoints.yaml <<EOF
@@ -150,6 +157,21 @@ jobs:
                   settings:
                     apiUrl: "${{ secrets.JSM_ALERT_API_URL }}"
                     apiKey: "${{ secrets.JSM_ALERT_API_KEY }}"
+            - orgId: 1
+              name: github-self-heal
+              receivers:
+                - uid: github-self-heal
+                  type: webhook
+                  settings:
+                    url: "https://api.github.com/repos/eberkdankil/toggle-master-tc2-fiap/dispatches"
+                    httpMethod: POST
+                    authorization_scheme: Bearer
+                    authorization_credentials: "${{ secrets.GH_DISPATCH_TOKEN }}"
+                    headers:
+                      Accept: application/vnd.github+json
+                    payload:
+                      template: |-
+                        {{ coll.Dict "event_type" "grafana-alert" "client_payload" (coll.Dict "deployment" "auth-service" "alert_name" .CommonLabels.alertname) | data.ToJSON }}
           EOF
 
           cat > /tmp/policies.yaml <<'EOF'
@@ -162,6 +184,7 @@ jobs:
                   continue: true
                 - receiver: jsm-operations
                   continue: true
+                - receiver: github-self-heal
           EOF
 
           kubectl create secret generic togglemaster-grafana-alerting \
