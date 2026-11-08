@@ -1,0 +1,44 @@
+name: self-heal
+
+# Fase E (observabilidade) — disparado via repository_dispatch pelo contact
+# point "webhook" do Grafana Alerting (Custom Payload, configurado direto na
+# UI do Grafana por causa da fragilidade do schema de alerta/webhook via
+# provisioning — ver FASE4-OBSERVABILIDADE-PLANO.md e memória do projeto).
+#
+# O PAT usado pelo Grafana pra chamar a API de dispatch NÃO é um GitHub
+# Secret deste repo — ele fica guardado dentro do próprio Grafana (campo de
+# autenticação do contact point), já que quem chama a API é o Grafana, não
+# uma Action daqui.
+on:
+  repository_dispatch:
+    types: [grafana-alert]
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: togglemaster
+
+jobs:
+  self-heal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configurar kubectl
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
+
+      # client_payload.deployment vem do corpo que o Grafana envia (Custom
+      # Payload do contact point). Fallback pro auth-service — é o único
+      # serviço com regra de alerta configurada nesta fase.
+      - name: Restart do deployment afetado
+        run: |
+          DEPLOYMENT="${{ github.event.client_payload.deployment }}"
+          DEPLOYMENT="${DEPLOYMENT:-auth-service}"
+          echo "Reiniciando deployment/$DEPLOYMENT (alerta: ${{ github.event.client_payload.alert_name }})"
+          kubectl -n toggle-master rollout restart deployment/"$DEPLOYMENT"
+          kubectl -n toggle-master rollout status deployment/"$DEPLOYMENT" --timeout=120s
