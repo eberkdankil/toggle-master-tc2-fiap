@@ -1,0 +1,16 @@
+# StorageClass pro EBS CSI driver (17-aws-ebs-csi-driver-app.yaml). Não é
+# "default" de propósito — nenhum outro PVC do projeto deve passar a pedir
+# volume sem querer só porque virou o default do cluster.
+#
+# WaitForFirstConsumer (em vez de Immediate) evita o volume ser criado numa
+# AZ diferente da do pod que vai usá-lo — problema real e comum em EKS com
+# subnets espalhadas em várias AZs (como é o nosso caso).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-gp3
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer

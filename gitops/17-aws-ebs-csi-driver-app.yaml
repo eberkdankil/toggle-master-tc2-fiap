@@ -1,0 +1,54 @@
+# Fase E — o cluster não tinha nenhum CSI driver instalado até agora (por
+# isso a decisão original, documentada em 12-kube-prometheus-stack-app.yaml,
+# foi não usar PVC em lugar nenhum). Instalamos esse driver só agora porque
+# o Grafana sem persistência perde qualquer coisa criada pela UI (ex: regra
+# de alerta) a cada `rollout restart`/redeploy — o que atrapalha a Fase E.
+#
+# Sem annotation de IRSA no service account de propósito: o AWS Academy não
+# deixa criar roles/policies de IAM próprias (só reusar a LabRole), e a
+# LabRole já está anexada ao node group via instance profile — os pods do
+# controller chamam a API EC2 (CreateVolume/AttachVolume/etc) usando essa
+# credencial de instância automaticamente, sem precisar de um role dedicado.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-ebs-csi-driver
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://kubernetes-sigs.github.io/aws-ebs-csi-driver
+    chart: aws-ebs-csi-driver
+    targetRevision: "2.67.2"
+    helm:
+      values: |
+        controller:
+          replicaCount: 1
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+        node:
+          resources:
+            requests:
+              cpu: 30m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

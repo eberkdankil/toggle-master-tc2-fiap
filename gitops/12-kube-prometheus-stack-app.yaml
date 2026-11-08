@@ -2,13 +2,13 @@
 # kube-prometheus-stack = Prometheus + Alertmanager + Grafana + Prometheus
 # Operator + node-exporter + kube-state-metrics, tudo num chart só.
 #
-# Sem persistência de propósito (Grafana/Prometheus usam armazenamento
-# efêmero — se o pod reiniciar, perde dashboard/histórico). Simplificação
-# consciente: o cluster do EKS não tem o EBS CSI driver instalado (nenhum
-# PVC foi usado até agora no projeto), então pedir volume persistente aqui
-# ia travar os pods em Pending esperando um StorageClass que não existe.
-# Pra um ambiente efêmero que já é destruído/recriado com frequência, não
-# compensa o esforço de instalar o CSI driver só por causa disso agora.
+# Prometheus/Alertmanager continuam sem persistência de propósito (retention
+# curta de 6h já é suficiente pro demo, e perder histórico de métricas num
+# restart não trava nada funcionalmente). O Grafana passou a ter persistência
+# na Fase E (17-aws-ebs-csi-driver-app.yaml + 18-ebs-storageclass.yaml) —
+# sem isso, qualquer coisa criada pela UI do Grafana que não vem de
+# provisioning via arquivo (como a regra de alerta de 5xx do auth-service)
+# se perdia a cada rollout restart/redeploy do Grafana.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -43,7 +43,9 @@ spec:
 
         grafana:
           persistence:
-            enabled: false
+            enabled: true
+            storageClassName: ebs-gp3
+            size: 1Gi
           resources:
             requests:
               cpu: 100m
