@@ -80,6 +80,18 @@ spec:
               label: grafana_dashboard
               labelValue: "1"
 
+            # Fase E — contact points (Discord + JSM Operations) vêm de um
+            # Secret (não ConfigMap), já que tem API key/webhook ali dentro.
+            # O sidecar aceita "resource: both" só pros dashboards; pra
+            # alerting dá pra mirar só em Secret (resource: secret) direto
+            # — nada de texto puro no gitops/ (ver bootstrap-cluster.yml,
+            # que monta e aplica esse Secret a partir de GitHub Secrets).
+            alerts:
+              enabled: true
+              label: grafana_alert
+              labelValue: "1"
+              resource: secret
+
         prometheus:
           prometheusSpec:
             retention: 6h

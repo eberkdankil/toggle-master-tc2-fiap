@@ -121,6 +121,59 @@ jobs:
             --from-literal=license-key="${{ secrets.NEWRELIC_LICENSE_KEY }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      # Fase E — contact points do Grafana Alerting (Discord + JSM
+      # Operations/Opsgenie-compatible). Vai num Secret (não ConfigMap),
+      # com o label grafana_alert: "1" que o sidecar do Grafana
+      # (sidecar.alerts em 12-kube-prometheus-stack-app.yaml) lê sozinho —
+      # nenhuma API key/webhook fica em texto puro no gitops/.
+      #
+      # A policy com "continue: true" nas duas primeiras rotas é o que faz
+      # um único alerta notificar os dois contact points ao mesmo tempo —
+      # sem isso, só o primeiro match na árvore de rotas dispararia.
+      - name: Aplicar Secret de alerting do Grafana (contact points)
+        run: |
+          cat > /tmp/contactpoints.yaml <<EOF
+          apiVersion: 1
+          contactPoints:
+            - orgId: 1
+              name: discord-togglemaster
+              receivers:
+                - uid: discord-togglemaster
+                  type: discord
+                  settings:
+                    url: "${{ secrets.DISCORD_WEBHOOK_URL }}"
+            - orgId: 1
+              name: jsm-operations
+              receivers:
+                - uid: jsm-operations
+                  type: opsgenie
+                  settings:
+                    apiUrl: "${{ secrets.JSM_ALERT_API_URL }}"
+                    apiKey: "${{ secrets.JSM_ALERT_API_KEY }}"
+          EOF
+
+          cat > /tmp/policies.yaml <<'EOF'
+          apiVersion: 1
+          policies:
+            - orgId: 1
+              receiver: discord-togglemaster
+              routes:
+                - receiver: discord-togglemaster
+                  continue: true
+                - receiver: jsm-operations
+                  continue: true
+          EOF
+
+          kubectl create secret generic togglemaster-grafana-alerting \
+            --namespace observability \
+            --from-file=contactpoints.yaml=/tmp/contactpoints.yaml \
+            --from-file=policies.yaml=/tmp/policies.yaml \
+            --dry-run=client -o yaml | \
+            kubectl label --local -f - grafana_alert=1 -o yaml | \
+            kubectl apply -f -
+
+          rm -f /tmp/contactpoints.yaml /tmp/policies.yaml
+
       # RDS não roda init.sql sozinho (isso é um mecanismo só da imagem
       # Docker do Postgres) — precisa aplicar o schema manualmente uma vez.
       - name: Rodar migração de schema nos 3 bancos

@@ -121,14 +121,24 @@ corretos").
 o trial vencer antes da gravação do vídeo (já tivemos esse tipo de problema
 de "coisa que expira no meio do caminho" com as credenciais do Academy).
 
-### 4.2 Incident Management: PagerDuty vs OpsGenie
-| | PagerDuty | OpsGenie |
-|---|---|---|
-| Plano grátis | Trial 14 dias | Free plan permanente (até 5 usuários) |
-| Integração com Grafana/webhook | Sim | Sim |
+### 4.2 Incident Management: PagerDuty vs OpsGenie vs JSM Operations
+**Atualizado em 2026-11-08**: a OpsGenie está em fim de vida (Atlassian
+parou venda nova em jun/2025, suporte único até abr/2027) — a
+funcionalidade migrou pra dentro do **Jira Service Management (JSM) →
+módulo Operations**.
 
-**Recomendação**: **OpsGenie** — mesmo raciocínio do item anterior (plano
-grátis sem prazo de validade, não só trial).
+| | PagerDuty | OpsGenie (legado) | JSM Operations |
+|---|---|---|---|
+| Plano grátis | Trial 14 dias | Em fim de vida, risco de não dar pra criar conta nova | Free permanente (até 3 agentes) |
+| Inclui Alerts + On-call | Sim | Sim | Sim |
+| Integração com Grafana/webhook | Sim | Sim | Sim (API compatível com OpsGenie durante a janela de migração) |
+
+**Recomendação**: **JSM Operations** — mesmo raciocínio do item anterior
+(plano grátis sem prazo de validade), evitando depender de um produto que
+a própria fabricante está descontinuando. A configuração técnica no
+Grafana Alerting não muda: o contact point nativo "OpsGenie" (API key +
+URL) continua funcionando, só a conta/API key passa a ser criada dentro
+do JSM em vez do OpsGenie standalone.
 
 ### 4.3 ChatOps: Slack vs Discord vs Teams
 **Recomendação**: **Discord** — zero fricção de setup (criar um webhook de
@@ -206,7 +216,8 @@ não aguentar na hora de gravar).
 ### Fase E — Alertas, Incidente, ChatOps, Self-Healing
 1. Regra de alerta no Grafana Alerting: taxa de 5xx do auth-service > 5%
    (usa a métrica de requisições já exportada na Fase B/D).
-2. Contact point 1: integração OpsGenie (abre incidente).
+2. Contact point 1: integração OpsGenie/JSM Operations (abre incidente —
+   ver decisão 4.2).
 3. Contact point 2: webhook Discord (notificação detalhada).
 4. Contact point 3: webhook pro GitHub (`repository_dispatch`) → workflow
    novo `self-heal.yml` que roda `kubectl rollout restart deployment/<serviço>`.
