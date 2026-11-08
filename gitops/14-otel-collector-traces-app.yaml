@@ -58,6 +58,13 @@ spec:
 
         serviceMonitor:
           enabled: true
+          # Sem isso, o Prometheus sobrescreve o label "job" que o Collector
+          # já exporta por serviço (derivado de service.name, convenção
+          # OTel->Prometheus) pelo nome do próprio scrape target
+          # (otel-collector-traces-opentelemetry-collector) — resultado real
+          # visto: todas as métricas apareciam com um job só, o do Collector,
+          # em vez de um job por microsserviço (auth-service, flag-service...).
+          honorLabels: true
 
         config:
           receivers:
