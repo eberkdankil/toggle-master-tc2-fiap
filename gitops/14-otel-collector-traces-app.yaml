@@ -4,10 +4,12 @@
 #   otel-collector-traces.observability.svc.cluster.local:4317 (gRPC)
 #   otel-collector-traces.observability.svc.cluster.local:4318 (HTTP)
 #
-# O exporter de traces pro New Relic (Fase C) ainda NÃO está configurado
-# aqui de propósito — depende de criar a conta e ter a license key, que
-# ainda não existem nesta fase. Por enquanto as traces só vão pro exporter
-# "debug" (aparecem no log do pod, prova que a ingestão funciona).
+# Fase C: traces também vão pro New Relic (OTLP/HTTP, conta "always free",
+# região US) via exporter otlphttp/newrelic. A license key nunca fica em
+# texto puro aqui — vem de um Secret (newrelic-license, aplicado pelo
+# bootstrap-cluster.yml a partir do GitHub Secret NEWRELIC_LICENSE_KEY) e
+# é injetada como env var NEWRELIC_LICENSE_KEY, referenciada no header via
+# ${env:NEWRELIC_LICENSE_KEY} (expansão nativa do OTel Collector).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -56,6 +58,13 @@ spec:
         service:
           enabled: true
 
+        extraEnvs:
+          - name: NEWRELIC_LICENSE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: newrelic-license
+                key: license-key
+
         serviceMonitor:
           enabled: true
           # honorLabels tem que ir dentro de metricsEndpoints — não existe
@@ -89,16 +98,16 @@ spec:
               endpoint: 0.0.0.0:8889
             debug:
               verbosity: basic
-            # FASE C: adicionar aqui um exporter "otlphttp/newrelic" apontando
-            # pro endpoint OTLP do New Relic, com a license key vinda de um
-            # Secret (via env var, nunca em texto puro) — e incluir esse
-            # exporter na pipeline de traces abaixo.
+            otlphttp/newrelic:
+              endpoint: https://otlp.nr-data.net:4318
+              headers:
+                api-key: ${env:NEWRELIC_LICENSE_KEY}
           service:
             pipelines:
               traces:
                 receivers: [otlp]
                 processors: [batch]
-                exporters: [debug]
+                exporters: [debug, otlphttp/newrelic]
               metrics:
                 receivers: [otlp]
                 processors: [batch]

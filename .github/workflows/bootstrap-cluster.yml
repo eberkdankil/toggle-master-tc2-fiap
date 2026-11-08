@@ -109,6 +109,18 @@ jobs:
             --from-literal=service-api-key="${{ secrets.SERVICE_API_KEY }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      # Fase C (APM) — license key do New Relic, nunca em texto puro no
+      # gitops/. O Collector lê isso via env var (extraEnvs no
+      # 14-otel-collector-traces-app.yaml) e usa no header "api-key" do
+      # exporter otlphttp/newrelic.
+      - name: Aplicar Secret do New Relic
+        run: |
+          kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic newrelic-license \
+            --namespace observability \
+            --from-literal=license-key="${{ secrets.NEWRELIC_LICENSE_KEY }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       # RDS não roda init.sql sozinho (isso é um mecanismo só da imagem
       # Docker do Postgres) — precisa aplicar o schema manualmente uma vez.
       - name: Rodar migração de schema nos 3 bancos
