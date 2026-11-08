@@ -81,9 +81,15 @@ func (a *App) createKeyHandler(w http.ResponseWriter, r *http.Request) {
 	newKeyHash := hashAPIKey(newKey)
 
 	// Salva o hash no banco de dados
+	//
+	// INCIDENTE DE PROPÓSITO (Fase 4 — gravação do vídeo): coluna errada
+	// de propósito ("key_hash_bugado" não existe) — simula um deploy ruim
+	// chegando via CI/CD normal, gerando 500 real e determinístico em
+	// /admin/keys sem derrubar o pod nem afetar /health ou /validate.
+	// REVERTER depois da gravação (voltar pra "key_hash").
 	var newID int
 	err = a.DB.QueryRow(
-		"INSERT INTO api_keys (name, key_hash) VALUES ($1, $2) RETURNING id",
+		"INSERT INTO api_keys (name, key_hash_bugado) VALUES ($1, $2) RETURNING id",
 		req.Name, newKeyHash,
 	).Scan(&newID)
 
